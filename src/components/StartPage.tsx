@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { Settings, Player, Character, GameState } from '../types'
 import { loadSettings, saveSettings, loadLastGame, saveLastGame } from '../utils/storage'
 import { v4 as uuid } from 'uuid'
@@ -33,6 +33,7 @@ export default function StartPage({ onStart }: { onStart: (gs: GameState)=>void 
   const [settings, setSettings] = useState<Settings>(saved)
   const [models, setModels] = useState<string[]>([])
   const [loadingModels, setLoadingModels] = useState(false)
+  const [modelsError, setModelsError] = useState<string | null>(null)
   const [players, setPlayers] = useState<Player[]>(() => {
     const p = localStorage.getItem('tmp_players_v1')
     if (p) return JSON.parse(p)
@@ -40,21 +41,122 @@ export default function StartPage({ onStart }: { onStart: (gs: GameState)=>void 
     return [{ id: uuid(), label: 'Player 1', character: c }]
   })
 
+  const pollingRef = useRef<number | undefined>(undefined)
+  const controllerRef = useRef<AbortController | null>(null)
+
   useEffect(()=> localStorage.setItem('tmp_players_v1', JSON.stringify(players)), [players])
 
-  useEffect(() => {
-    if (!settings.ollamaUrl) return
+  async function fetchModels(signal?: AbortSignal) {
+    if (!settings.ollamaUrl) {
+      setModels([])
+      setModelsError(null)
+      return
+    }
     setLoadingModels(true)
+    setModelsError(null)
+    try {
+      const res = await fetch(settings.ollamaUrl.replace(/\/$/, '') + '/v1/models', { signal })
+      if (!res.ok) {
+        const text = await res.text().catch(()=> '')
+        throw new Error(`Status ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
+      }
+      const data = await res.json()
+      let ms: string[] = []
+      if (Array.isArray(data)) ms = data.map((m:any)=>m.name ?? m.id ?? String(m))
+      else if (data.models) ms = data.models.map((m:any)=>m.name ?? m.id)
+      setModels(ms)
+      setModelsError(null)
+      return ms
+    } catch (err:any) {
+      if (err.name === 'AbortError') return
+      console.warn('fetchModels error', err)
+      setModels([])
+      setModelsError(err?.message ?? String(err))
+      return []
+    } finally {
+      setLoadingModels(false)
+    }
+  }
+
+  function startPolling(intervalMs = 3000, maxAttempts = 10) {
+    // Clear any existing polling
+    if (pollingRef.current) window.clearInterval(pollingRef.current)
+    let attempts = 0
+    // Ensure any previous controller is aborted
+    controllerRef.current?.abort()
+
     const controller = new AbortController()
-    fetch(settings.ollamaUrl.replace(/\/$/, '') + '/v1/models', { signal: controller.signal })
-      .then(r => r.json())
-      .then((data) => {
-        let ms: string[] = []
-        if (Array.isArray(data)) ms = data.map((m:any)=>m.name ?? m.id ?? String(m))
-        else if (data.models) ms = data.models.map((m:any)=>m.name ?? m.id)
-        setModels(ms)
-      }).catch(()=> setModels([])).finally(()=> setLoadingModels(false))
-    return ()=> controller.abort()
+    controllerRef.current = controller
+
+    // first attempt immediately
+    fetchModels(controller.signal).then(ms => {
+      if (ms && ms.length > 0) {
+        // got models, no need to poll
+        if (pollingRef.current) {
+          window.clearInterval(pollingRef.current)
+          pollingRef.current = undefined
+        }
+        controllerRef.current = null
+      }
+    })
+
+    pollingRef.current = window.setInterval(async () => {
+      attempts++
+      // stop if max attempts reached
+      if (attempts >= maxAttempts) {
+        if (pollingRef.current) {
+          window.clearInterval(pollingRef.current)
+          pollingRef.current = undefined
+        }
+        controllerRef.current = null
+        return
+      }
+      // create a new controller for each fetch so it can be aborted if URL changes
+      controllerRef.current?.abort()
+      const c = new AbortController()
+      controllerRef.current = c
+      const ms = await fetchModels(c.signal)
+      if (ms && ms.length > 0) {
+        if (pollingRef.current) {
+          window.clearInterval(pollingRef.current)
+          pollingRef.current = undefined
+        }
+        controllerRef.current = null
+      }
+    }, intervalMs)
+  }
+
+  useEffect(() => {
+    // whenever URL changes, attempt one fetch and start polling if no models
+    // abort previous controller/polling
+    controllerRef.current?.abort()
+    if (pollingRef.current) {
+      window.clearInterval(pollingRef.current)
+      pollingRef.current = undefined
+    }
+
+    if (!settings.ollamaUrl) {
+      setModels([])
+      setModelsError(null)
+      return
+    }
+
+    // attempt immediate fetch and start polling if empty
+    const controller = new AbortController()
+    controllerRef.current = controller
+    fetchModels(controller.signal).then(ms => {
+      if (!ms || ms.length === 0) {
+        startPolling()
+      }
+    })
+
+    return () => {
+      controllerRef.current?.abort()
+      if (pollingRef.current) {
+        window.clearInterval(pollingRef.current)
+        pollingRef.current = undefined
+      }
+    }
   }, [settings.ollamaUrl])
 
   function updateSettings(k: Partial<Settings>) {
@@ -142,12 +244,25 @@ export default function StartPage({ onStart }: { onStart: (gs: GameState)=>void 
           <div className="smallMuted">Enter your Ollama base URL (e.g. http://localhost:11434)</div>
           <input className="input" value={settings.ollamaUrl || ''} onChange={(e)=>updateSettings({ollamaUrl:e.target.value})} placeholder="http://localhost:11434" />
           <div style={{marginTop:8}}>
-            <div className="smallMuted">Models</div>
+            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+              <div className="smallMuted">Models</div>
+              <div>
+                <button className="button ghost" onClick={() => {
+                  // user requested manual refresh
+                  controllerRef.current?.abort()
+                  if (pollingRef.current) { window.clearInterval(pollingRef.current); pollingRef.current = undefined }
+                  const c = new AbortController(); controllerRef.current = c; fetchModels(c.signal)
+                }} disabled={loadingModels}>Refresh</button>
+              </div>
+            </div>
             {loadingModels ? <div className="smallMuted">Loading models...</div> : (
-              <select className="input" value={settings.model || ''} onChange={(e)=>updateSettings({model: e.target.value})}>
-                <option value="">Select model</option>
-                {models.map(m=> <option key={m} value={m}>{m}</option>)}
-              </select>
+              <>
+                {modelsError && <div className="smallMuted" style={{color:'crimson'}}>Error: {modelsError}</div>}
+                <select className="input" value={settings.model || ''} onChange={(e)=>updateSettings({model: e.target.value})}>
+                  <option value="">Select model</option>
+                  {models.map(m=> <option key={m} value={m}>{m}</option>)}
+                </select>
+              </>
             )}
           </div>
         </div>
