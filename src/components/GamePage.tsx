@@ -2,10 +2,9 @@ import React, { useEffect, useState } from 'react'
 import { GameState, Player } from '../types'
 import PlayerSheet from './PlayerSheet'
 import DiceRoller from './DiceRoller'
-import { saveLastGame, loadLastGame } from '../utils/storage'
+import { saveLastGame } from '../utils/storage'
 import { generateWithStreaming } from '../utils/ollama'
 import { summarizeConversation } from '../utils/summarizer'
-import { v4 as uuid } from 'uuid'
 
 export default function GamePage({ initial, onExit }: { initial: GameState, onExit: ()=>void }) {
   const [gs, setGs] = useState<GameState>(initial)
@@ -67,7 +66,6 @@ export default function GamePage({ initial, onExit }: { initial: GameState, onEx
       const dmEntry = { role: 'dm' as const, text: dmText, timestamp: new Date().toISOString() }
       const history2 = [...history1, dmEntry]
       updateGame({ history: history2 })
-      setLastDmText('')
 
       // Summarize (use model) combining previous summary + this turn
       const latestEventsText = `${playEntry.text}\n\nDM: ${dmText}`
