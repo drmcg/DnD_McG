@@ -29,6 +29,7 @@ export default function GamePage({ initial, onExit }: { initial: GameState, onEx
   async function handlePlayerAction(player: Player, actionText: string, diceResult?: {value:number, label:string}) {
     if (busy) return
     setBusy(true)
+    setLastDmText('')
     // Append player's action to history
     const playEntry = { role:'player' as const, playerId: player.id, text: `${player.label}: ${actionText}${diceResult ? ` (Dice: ${diceResult.label} => ${diceResult.value})` : ''}`, timestamp: new Date().toISOString() }
     const history1 = [...gs.history, playEntry]
