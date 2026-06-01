@@ -157,16 +157,32 @@ export async function generateWithStreaming(opts: GenerateOptions): Promise<stri
   throw lastErr ?? new Error('Generation failed after retries')
 }
 
-// helper to combine signals (simple polyfill)
+// helper to combine signals with listener cleanup
 function anySignal(signals: AbortSignal[]): AbortSignal {
   const controller = new AbortController()
-  const onAbort = () => controller.abort()
-  for (const s of signals) {
-    if (s.aborted) {
-      controller.abort()
-      break
-    }
-    s.addEventListener('abort', onAbort)
+
+  if (signals.some((s) => s.aborted)) {
+    controller.abort()
+    return controller.signal
   }
+
+  const cleanupCallbacks: Array<() => void> = []
+
+  const cleanup = () => {
+    for (const remove of cleanupCallbacks) remove()
+    cleanupCallbacks.length = 0
+  }
+
+  const onAbort = () => {
+    cleanup()
+    if (!controller.signal.aborted) controller.abort()
+  }
+
+  for (const s of signals) {
+    s.addEventListener('abort', onAbort, { once: true })
+    cleanupCallbacks.push(() => s.removeEventListener('abort', onAbort))
+  }
+
+  controller.signal.addEventListener('abort', cleanup, { once: true })
   return controller.signal
 }
