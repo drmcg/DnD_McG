@@ -1,4 +1,4 @@
-export type Attribute = 'STR'|'DEX'|'CON'|'INT'|'WIS'|'CHA'
+export type Attribute = 'STR' | 'DEX' | 'CON' | 'INT' | 'WIS' | 'CHA'
 
 export interface Item {
   id: string
@@ -61,7 +61,7 @@ export interface GameState {
   name: string
   players: Player[]
   currentPlayerIndex: number
-  history: Array<{role: 'player'|'dm'|'system', playerId?: string, text: string, timestamp: string}>
+  history: Array<{ role: 'player' | 'dm' | 'system', playerId?: string, text: string, timestamp: string }>
   summary: string
   settings: Settings
   createdAt: string

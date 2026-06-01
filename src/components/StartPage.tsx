@@ -5,10 +5,10 @@ import { fetchModels as fetchOllamaModels } from '../utils/ollama'
 import { v4 as uuid } from 'uuid'
 
 function defaultCharacter(id?: string): Character {
-  const attrs = { STR:10, DEX:10, CON:10, INT:10, WIS:10, CHA:10 } as any
+  const attrs = { STR: 10, DEX: 10, CON: 10, INT: 10, WIS: 10, CHA: 10 } as any
   const hp = 10
   return {
-    id: id||uuid(),
+    id: id || uuid(),
     name: 'Adventurer',
     race: 'Human',
     class: 'Fighter',
@@ -29,7 +29,7 @@ function defaultCharacter(id?: string): Character {
   }
 }
 
-export default function StartPage({ onStart }: { onStart: (gs: GameState)=>void }) {
+export default function StartPage({ onStart }: { onStart: (gs: GameState) => void }) {
   const saved = loadSettings()
   const [settings, setSettings] = useState<Settings>(saved)
   const [models, setModels] = useState<string[]>([])
@@ -44,7 +44,7 @@ export default function StartPage({ onStart }: { onStart: (gs: GameState)=>void 
 
   const controllerRef = useRef<AbortController | null>(null)
 
-  useEffect(()=> localStorage.setItem('tmp_players_v1', JSON.stringify(players)), [players])
+  useEffect(() => localStorage.setItem('tmp_players_v1', JSON.stringify(players)), [players])
 
   async function fetchModels(signal?: AbortSignal) {
     if (!settings.ollamaUrl) {
@@ -89,7 +89,7 @@ export default function StartPage({ onStart }: { onStart: (gs: GameState)=>void 
   }, [settings.ollamaUrl])
 
   function updateSettings(k: Partial<Settings>) {
-    const s = {...settings, ...k}
+    const s = { ...settings, ...k }
     setSettings(s)
     saveSettings(s)
   }
@@ -101,7 +101,7 @@ export default function StartPage({ onStart }: { onStart: (gs: GameState)=>void 
     })
   }
   function removePlayer() {
-    setPlayers(prev => prev.length > 1 ? prev.slice(0,-1) : prev)
+    setPlayers(prev => prev.length > 1 ? prev.slice(0, -1) : prev)
   }
 
   function editPlayer(i: number, update: Partial<Player>) {
@@ -114,7 +114,7 @@ export default function StartPage({ onStart }: { onStart: (gs: GameState)=>void 
 
   function startGame(name = 'Campaign') {
     // lock characters
-    const playersLocked = players.map(p => ({...p, character: {...p.character, locked: true}}))
+    const playersLocked = players.map(p => ({ ...p, character: { ...p.character, locked: true } }))
     const gs: GameState = {
       id: uuid(),
       name,
@@ -159,21 +159,21 @@ export default function StartPage({ onStart }: { onStart: (gs: GameState)=>void 
       <div className="header">
         <h1>DND — Ollama Dungeon Master</h1>
         <div className="controls">
-          <button className="button" onClick={()=>loadLast()}>Load Last Save</button>
+          <button className="button" onClick={() => loadLast()}>Load Last Save</button>
           <label className="button ghost">
             Import
-            <input style={{display:'none'}} type="file" accept=".json,application/json" onChange={importFile} />
+            <input style={{ display: 'none' }} type="file" accept=".json,application/json" onChange={importFile} />
           </label>
         </div>
       </div>
 
-      <div className="flex" style={{marginTop:12}}>
+      <div className="flex" style={{ marginTop: 12 }}>
         <div className="col card">
           <h3>Ollama Server</h3>
           <div className="smallMuted">Enter your Ollama base URL (e.g. http://localhost:11434)</div>
-          <input className="input" value={settings.ollamaUrl || ''} onChange={(e)=>updateSettings({ollamaUrl:e.target.value})} placeholder="http://localhost:11434" />
-          <div style={{marginTop:8}}>
-            <div style={{display:'flex', alignItems:'center', justifyContent:'space-between'}}>
+          <input className="input" value={settings.ollamaUrl || ''} onChange={(e) => updateSettings({ ollamaUrl: e.target.value })} placeholder="http://localhost:11434" />
+          <div style={{ marginTop: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <div className="smallMuted">Models</div>
               <div>
                 <button className="button ghost" onClick={() => {
@@ -186,10 +186,10 @@ export default function StartPage({ onStart }: { onStart: (gs: GameState)=>void 
             </div>
             {loadingModels ? <div className="smallMuted">Loading models...</div> : (
               <>
-                {modelsError && <div className="smallMuted" style={{color:'crimson'}}>Error: {modelsError}</div>}
-                <select className="input" value={settings.model || ''} onChange={(e)=>updateSettings({model: e.target.value})}>
+                {modelsError && <div className="smallMuted" style={{ color: 'crimson' }}>Error: {modelsError}</div>}
+                <select className="input" value={settings.model || ''} onChange={(e) => updateSettings({ model: e.target.value })}>
                   <option value="">Select model</option>
-                  {models.map(m=> <option key={m} value={m}>{m}</option>)}
+                  {models.map(m => <option key={m} value={m}>{m}</option>)}
                 </select>
               </>
             )}
@@ -199,37 +199,37 @@ export default function StartPage({ onStart }: { onStart: (gs: GameState)=>void 
         <div className="col card">
           <h3>Players</h3>
           <div className="smallMuted">Add or remove players (min 1). Characters can be edited later.</div>
-          <div style={{display:'flex', gap:8, marginTop:8, alignItems:'center'}}>
+          <div style={{ display: 'flex', gap: 8, marginTop: 8, alignItems: 'center' }}>
             <button className="button" onClick={addPlayer}>+</button>
             <button className="button" onClick={removePlayer}>-</button>
             <div className="smallMuted">Players: {players.length}</div>
           </div>
-          <div className="playerList" style={{marginTop:8}}>
-            {players.map((p,i)=>(
-              <div key={p.id} style={{display:'flex', gap:8, alignItems:'center', justifyContent:'space-between'}}>
+          <div className="playerList" style={{ marginTop: 8 }}>
+            {players.map((p, i) => (
+              <div key={p.id} style={{ display: 'flex', gap: 8, alignItems: 'center', justifyContent: 'space-between' }}>
                 <div>
                   <div className="playerBadge">{p.label}</div>
                   <div className="small">{p.character.name} — {p.character.class} {p.character.race}</div>
                 </div>
-                <div style={{display:'flex', gap:6}}>
-                  <button className="button ghost" onClick={()=> {
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button className="button ghost" onClick={() => {
                     const name = prompt('Player label', p.label) || p.label
-                    editPlayer(i,{...p, label:name})
+                    editPlayer(i, { ...p, label: name })
                   }}>Edit</button>
                   <button className="button" onClick={() => {
                     // quick customize char name/class
                     const name = prompt('Character name', p.character.name) || p.character.name
                     const cls = prompt('Class', p.character.class) || p.character.class
                     const race = prompt('Race', p.character.race) || p.character.race
-                    const char = {...p.character, name, class: cls, race}
-                    editPlayer(i, {...p, character: char})
+                    const char = { ...p.character, name, class: cls, race }
+                    editPlayer(i, { ...p, character: char })
                   }}>Quick Set</button>
                 </div>
               </div>
             ))}
           </div>
-          <div style={{marginTop:12}}>
-            <button className="button" onClick={()=> startGame('New Campaign') }>Start Game</button>
+          <div style={{ marginTop: 12 }}>
+            <button className="button" onClick={() => startGame('New Campaign')}>Start Game</button>
           </div>
         </div>
       </div>

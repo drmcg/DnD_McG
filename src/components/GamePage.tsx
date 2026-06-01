@@ -6,17 +6,17 @@ import { saveLastGame } from '../utils/storage'
 import { generateWithStreaming } from '../utils/ollama'
 import { summarizeConversation } from '../utils/summarizer'
 
-export default function GamePage({ initial, onExit }: { initial: GameState, onExit: ()=>void }) {
+export default function GamePage({ initial, onExit }: { initial: GameState, onExit: () => void }) {
   const [gs, setGs] = useState<GameState>(initial)
   const [busy, setBusy] = useState(false)
   const [lastDmText, setLastDmText] = useState<string>('')
 
-  useEffect(()=> {
+  useEffect(() => {
     saveLastGame(gs)
   }, [gs])
 
   function updateGame(up: Partial<GameState>) {
-    const next = {...gs, ...up, updatedAt: new Date().toISOString()}
+    const next = { ...gs, ...up, updatedAt: new Date().toISOString() }
     setGs(next)
     saveLastGame(next)
   }
@@ -25,12 +25,12 @@ export default function GamePage({ initial, onExit }: { initial: GameState, onEx
     return (gs.currentPlayerIndex + 1) % gs.players.length
   }
 
-  async function handlePlayerAction(player: Player, actionText: string, diceResult?: {value:number, label:string}) {
+  async function handlePlayerAction(player: Player, actionText: string, diceResult?: { value: number, label: string }) {
     if (busy) return
     setBusy(true)
     setLastDmText('')
     // Append player's action to history
-    const playEntry = { role:'player' as const, playerId: player.id, text: `${player.label}: ${actionText}${diceResult ? ` (Dice: ${diceResult.label} => ${diceResult.value})` : ''}`, timestamp: new Date().toISOString() }
+    const playEntry = { role: 'player' as const, playerId: player.id, text: `${player.label}: ${actionText}${diceResult ? ` (Dice: ${diceResult.label} => ${diceResult.value})` : ''}`, timestamp: new Date().toISOString() }
     const history1 = [...gs.history, playEntry]
     updateGame({ history: history1 })
 
@@ -55,9 +55,9 @@ export default function GamePage({ initial, onExit }: { initial: GameState, onEx
       const dmText = await generateWithStreaming({
         settings: gs.settings,
         prompt,
-        maxRuntimeMs: 5*60*1000, // 5 minutes
+        maxRuntimeMs: 5 * 60 * 1000, // 5 minutes
         retry: 3,
-        onChunk: (c)=> {
+        onChunk: (c) => {
           // streaming chunks can be shown in UI if desired
           setLastDmText(prev => prev + c)
         }
@@ -74,7 +74,7 @@ export default function GamePage({ initial, onExit }: { initial: GameState, onEx
         newSummary = await summarizeConversation(gs.settings, gs.summary, latestEventsText)
       } catch (err) {
         // fallback: append concise manual summary
-        newSummary = (gs.summary ? gs.summary + ' ' : '') + ` ${player.label} acted: ${actionText}. DM: ${dmText}`.slice(0,1000)
+        newSummary = (gs.summary ? gs.summary + ' ' : '') + ` ${player.label} acted: ${actionText}. DM: ${dmText}`.slice(0, 1000)
       }
       // update summary and advance turn
       updateGame({ summary: newSummary, currentPlayerIndex: nextPlayerIndex() })
@@ -88,15 +88,15 @@ export default function GamePage({ initial, onExit }: { initial: GameState, onEx
   function onDamage(playerId: string, delta: number) {
     const players = gs.players.map(p => {
       if (p.id !== playerId) return p
-      const c = {...p.character}
+      const c = { ...p.character }
       c.hp = Math.max(0, Math.min(c.maxHp, c.hp + delta))
-      return {...p, character: c}
+      return { ...p, character: c }
     })
     updateGame({ players })
   }
 
   function exportSave() {
-    const blob = new Blob([JSON.stringify(gs, null, 2)], {type:'application/json'})
+    const blob = new Blob([JSON.stringify(gs, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
@@ -114,38 +114,38 @@ export default function GamePage({ initial, onExit }: { initial: GameState, onEx
 
   return (
     <div className="card">
-      <div style={{display:'flex', justifyContent:'space-between', alignItems:'center'}}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2>{gs.name}</h2>
           <div className="smallMuted">Current player: <span className="turnIndicator">{curPlayer.label}</span></div>
         </div>
-        <div style={{display:'flex', gap:8}}>
+        <div style={{ display: 'flex', gap: 8 }}>
           <button className="button" onClick={exportSave}>Export JSON</button>
           <button className="button ghost" onClick={newGame}>New Game</button>
         </div>
       </div>
 
-      <div style={{display:'flex', gap:12, marginTop:12}}>
-        <div style={{flex:2}}>
+      <div style={{ display: 'flex', gap: 12, marginTop: 12 }}>
+        <div style={{ flex: 2 }}>
           <h3>Players</h3>
           {gs.players.map(p => <PlayerSheet key={p.id} player={p} onDamage={onDamage} />)}
         </div>
-        <div style={{width:360}}>
+        <div style={{ width: 360 }}>
           <div className="card">
             <h4>Action / Dice</h4>
             <div className="smallMuted">You are controlling: <strong>{curPlayer.label} — {curPlayer.character.name}</strong></div>
             <ActionForm onSubmit={(text, dice) => handlePlayerAction(curPlayer, text, dice)} disabled={busy} />
           </div>
 
-          <DiceRoller character={curPlayer.character} onRoll={(value,label)=> {
+          <DiceRoller character={curPlayer.character} onRoll={(value, label) => {
             // Immediately treat dice roll as part of action; prompt for quick description
             const desc = prompt(`Describe the player's action that used ${label}`, `${curPlayer.label} attempts a check (dice ${value})`) || `${curPlayer.label} makes a ${label}`
-            handlePlayerAction(curPlayer, desc, {value, label})
+            handlePlayerAction(curPlayer, desc, { value, label })
           }} />
 
-          <div className="card" style={{marginTop:8}}>
+          <div className="card" style={{ marginTop: 8 }}>
             <h4>Last DM Response (streaming)</h4>
-            <pre style={{whiteSpace:'pre-wrap'}}>{lastDmText}</pre>
+            <pre style={{ whiteSpace: 'pre-wrap' }}>{lastDmText}</pre>
           </div>
         </div>
       </div>
@@ -153,13 +153,13 @@ export default function GamePage({ initial, onExit }: { initial: GameState, onEx
   )
 }
 
-function ActionForm({ onSubmit, disabled }: { onSubmit: (text:string, dice?:{value:number,label:string})=>void, disabled?:boolean }) {
+function ActionForm({ onSubmit, disabled }: { onSubmit: (text: string, dice?: { value: number, label: string }) => void, disabled?: boolean }) {
   const [text, setText] = React.useState('')
   return (
     <div>
-      <textarea className="input" value={text} onChange={e=>setText(e.target.value)} rows={4} />
-      <div style={{display:'flex', gap:8, marginTop:8}}>
-        <button className="button" onClick={()=>{ if (!text.trim()) return alert('Describe your action'); onSubmit(text.trim()); setText('') }} disabled={disabled}>Submit Action</button>
+      <textarea className="input" value={text} onChange={e => setText(e.target.value)} rows={4} />
+      <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
+        <button className="button" onClick={() => { if (!text.trim()) return alert('Describe your action'); onSubmit(text.trim()); setText('') }} disabled={disabled}>Submit Action</button>
       </div>
     </div>
   )

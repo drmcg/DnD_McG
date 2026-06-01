@@ -7,6 +7,6 @@ app.use(express.static(dist))
 app.get('*', (req, res) => {
   res.sendFile(path.join(dist, 'index.html'))
 })
-app.listen(port, ()=> {
+app.listen(port, () => {
   console.log('Serving on port', port)
 })
