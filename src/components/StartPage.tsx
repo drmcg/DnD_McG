@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { Settings, Player, Character, GameState } from '../types'
 import { loadSettings, saveSettings, loadLastGame, saveLastGame } from '../utils/storage'
+import { fetchModels as fetchOllamaModels } from '../utils/ollama'
 import { v4 as uuid } from 'uuid'
 
 function defaultCharacter(id?: string): Character {
@@ -55,19 +56,11 @@ export default function StartPage({ onStart }: { onStart: (gs: GameState)=>void 
     setLoadingModels(true)
     setModelsError(null)
     try {
-      const res = await fetch(settings.ollamaUrl.replace(/\/$/, '') + '/api/tags', { signal })
-      if (!res.ok) {
-        const text = await res.text().catch(()=> '')
-        throw new Error(`Status ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
-      }
-      const data = await res.json()
-      let ms: string[] = []
-      if (Array.isArray(data)) ms = data.map((m:any)=>m.name ?? m.id ?? String(m))
-      else if (data.models) ms = data.models.map((m:any)=>m.name ?? m.id)
+      const ms = await fetchOllamaModels(settings.ollamaUrl, signal)
       setModels(ms)
       setModelsError(null)
       return ms
-    } catch (err:any) {
+    } catch (err: any) {
       if (err.name === 'AbortError') return
       console.warn('fetchModels error', err)
       setModels([])
