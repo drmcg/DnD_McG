@@ -46,6 +46,15 @@ export async function generateWithStreaming(opts: GenerateOptions): Promise<stri
     const controller = new AbortController()
     const overallTimer = setTimeout(() => controller.abort(), maxRuntimeMs)
     const combinedSignal = opts.signal ? anySignal([controller.signal, opts.signal]) : controller.signal
+    let lastChunkTimer: ReturnType<typeof setTimeout> | null = null
+
+    const clearTimers = () => {
+      clearTimeout(overallTimer)
+      if (lastChunkTimer) {
+        clearTimeout(lastChunkTimer)
+        lastChunkTimer = null
+      }
+    }
 
     try {
       const res = await fetch(url, {
@@ -70,7 +79,6 @@ export async function generateWithStreaming(opts: GenerateOptions): Promise<stri
       const decoder = new TextDecoder()
       let responseText = ''
       let pending = ''
-      let lastChunkTimer: ReturnType<typeof setTimeout> | null = null
 
       const resetChunkTimer = () => {
         if (lastChunkTimer) clearTimeout(lastChunkTimer)
@@ -104,8 +112,7 @@ export async function generateWithStreaming(opts: GenerateOptions): Promise<stri
             }
 
             if (chunk.done) {
-              if (lastChunkTimer) clearTimeout(lastChunkTimer)
-              clearTimeout(overallTimer)
+              clearTimers()
               return responseText
             }
           }
@@ -119,19 +126,29 @@ export async function generateWithStreaming(opts: GenerateOptions): Promise<stri
       if (finalLine) {
         const chunk = JSON.parse(finalLine) as OllamaGenerateChunk
         if (chunk.error) throw new Error(chunk.error)
+
         const text = chunk.response ?? ''
         if (text) {
           responseText += text
           if (opts.onChunk) opts.onChunk(text)
         }
+
+        if (chunk.done) {
+          clearTimers()
+          return responseText
+        }
       }
 
-      clearTimeout(overallTimer)
-      if (lastChunkTimer) clearTimeout(lastChunkTimer)
+      clearTimers()
       return responseText
-    } catch (err) {
-      clearTimeout(overallTimer)
+    } catch (err: any) {
+      clearTimers()
       lastErr = err
+
+      if (err?.name === 'AbortError' || combinedSignal.aborted) {
+        throw err
+      }
+
       const backoff = 500 * attempt
       await new Promise((r) => setTimeout(r, backoff))
     }
