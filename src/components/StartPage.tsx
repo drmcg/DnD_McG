@@ -42,7 +42,6 @@ export default function StartPage({ onStart }: { onStart: (gs: GameState)=>void 
     return [{ id: uuid(), label: 'Player 1', character: c }]
   })
 
-  const pollingRef = useRef<number | undefined>(undefined)
   const controllerRef = useRef<AbortController | null>(null)
 
   useEffect(()=> localStorage.setItem('tmp_players_v1', JSON.stringify(players)), [players])
@@ -71,62 +70,8 @@ export default function StartPage({ onStart }: { onStart: (gs: GameState)=>void 
     }
   }
 
-  function startPolling(intervalMs = 3000, maxAttempts = 10) {
-    // Clear any existing polling
-    if (pollingRef.current) window.clearInterval(pollingRef.current)
-    let attempts = 0
-    // Ensure any previous controller is aborted
-    controllerRef.current?.abort()
-
-    const controller = new AbortController()
-    controllerRef.current = controller
-
-    // first attempt immediately
-    fetchModels(controller.signal).then(ms => {
-      if (ms && ms.length > 0) {
-        // got models, no need to poll
-        if (pollingRef.current) {
-          window.clearInterval(pollingRef.current)
-          pollingRef.current = undefined
-        }
-        controllerRef.current = null
-      }
-    })
-
-    pollingRef.current = window.setInterval(async () => {
-      attempts++
-      // stop if max attempts reached
-      if (attempts >= maxAttempts) {
-        if (pollingRef.current) {
-          window.clearInterval(pollingRef.current)
-          pollingRef.current = undefined
-        }
-        controllerRef.current = null
-        return
-      }
-      // create a new controller for each fetch so it can be aborted if URL changes
-      controllerRef.current?.abort()
-      const c = new AbortController()
-      controllerRef.current = c
-      const ms = await fetchModels(c.signal)
-      if (ms && ms.length > 0) {
-        if (pollingRef.current) {
-          window.clearInterval(pollingRef.current)
-          pollingRef.current = undefined
-        }
-        controllerRef.current = null
-      }
-    }, intervalMs)
-  }
-
   useEffect(() => {
-    // whenever URL changes, attempt one fetch and start polling if no models
-    // abort previous controller/polling
     controllerRef.current?.abort()
-    if (pollingRef.current) {
-      window.clearInterval(pollingRef.current)
-      pollingRef.current = undefined
-    }
 
     if (!settings.ollamaUrl) {
       setModels([])
@@ -134,21 +79,12 @@ export default function StartPage({ onStart }: { onStart: (gs: GameState)=>void 
       return
     }
 
-    // attempt immediate fetch and start polling if empty
     const controller = new AbortController()
     controllerRef.current = controller
-    fetchModels(controller.signal).then(ms => {
-      if (!ms || ms.length === 0) {
-        startPolling()
-      }
-    })
+    fetchModels(controller.signal)
 
     return () => {
       controllerRef.current?.abort()
-      if (pollingRef.current) {
-        window.clearInterval(pollingRef.current)
-        pollingRef.current = undefined
-      }
     }
   }, [settings.ollamaUrl])
 
@@ -241,10 +177,10 @@ export default function StartPage({ onStart }: { onStart: (gs: GameState)=>void 
               <div className="smallMuted">Models</div>
               <div>
                 <button className="button ghost" onClick={() => {
-                  // user requested manual refresh
                   controllerRef.current?.abort()
-                  if (pollingRef.current) { window.clearInterval(pollingRef.current); pollingRef.current = undefined }
-                  const c = new AbortController(); controllerRef.current = c; fetchModels(c.signal)
+                  const c = new AbortController()
+                  controllerRef.current = c
+                  fetchModels(c.signal)
                 }} disabled={loadingModels}>Refresh</button>
               </div>
             </div>
