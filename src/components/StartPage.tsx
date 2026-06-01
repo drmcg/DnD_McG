@@ -55,7 +55,7 @@ export default function StartPage({ onStart }: { onStart: (gs: GameState)=>void 
     setLoadingModels(true)
     setModelsError(null)
     try {
-      const res = await fetch(settings.ollamaUrl.replace(/\/$/, '') + '/v1/models', { signal })
+      const res = await fetch(settings.ollamaUrl.replace(/\/$/, '') + '/api/tags', { signal })
       if (!res.ok) {
         const text = await res.text().catch(()=> '')
         throw new Error(`Status ${res.status} ${res.statusText}${text ? ` - ${text}` : ''}`)
